@@ -55,51 +55,70 @@
 
 
 
+import express from 'express'
+import dotenv from 'dotenv'
+import mongoose from 'mongoose'
+import cookieParser from 'cookie-parser'
+import cors from "cors"
 
-import express from 'express';
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
-import cookieParser from 'cookie-parser';
-import cors from 'cors';
+import userRoutes from './routes/user.route.js'
+import promtRoutes from './routes/promt.route.js'
 
-import userRoutes from './routes/user.route.js';
-import promtRoutes from './routes/promt.route.js';
+dotenv.config()
 
-dotenv.config();
+const app = express()
+const port = process.env.PORT || 3000
+const MONGO_URL = process.env.MONGO_URI
 
-const app = express();
-const port = process.env.PORT || 3000;
-const MONGO_URL = process.env.MONGO_URI;
-
-// ✅ Middleware
-app.use(express.json());
-app.use(cookieParser());
+// middleware 
+app.use(express.json())
+app.use(cookieParser())
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // ✅ FIX: You had "FRONTENT_URL" typo earlier
+    origin: [
+      process.env.FRONTEND_URL,
+      'https://vedasaar.netlify.app',
+      'http://localhost:5173',
+      'http://localhost:3000'
+    ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'], // ✅ SIMPLIFIED & corrected
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Authorization", "Access-Control-Allow-Headers", "Origin", "X-Requested-With", "Content-Type", "Accept"],
   })
 );
 
-// ✅ MongoDB Connection
-mongoose
-  .connect(MONGO_URL)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch((error) => console.error('❌ MongoDB connection error:', error));
-
-// ✅ Routes
-app.use('/api/v1/user', userRoutes);
-app.use('/api/v1/gemini/chat', promtRoutes);
-
-// ✅ Default route (important for "Cannot GET /")
+// Basic route for health check
 app.get('/', (req, res) => {
-  res.send('✅ VedaSaar Backend is Running');
+  res.json({ message: 'VedaSaar Backend is running!' });
 });
 
-// ✅ Start server
-app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
+
+// DB connection Code Goes Here!!!
+mongoose.connect(MONGO_URL)
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((error) => console.error("❌ MongoDB connection Error: ", error))
+
+// routes
+app.use("/api/v1/user", userRoutes)
+app.use("/api/v1/gemini/chat", promtRoutes)
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Handle 404 routes
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${port}`)
+  console.log(`API_KEY: ${process.env.GEMINI_API_KEY ? 'Loaded' : 'Not found'}`)
+})
